@@ -1,0 +1,10 @@
+name: global_land_temperature_analysis_by_country
+title: Global Land Temperature Analysis by Country
+account: coderman202
+server: shinyapps.io
+appId: 201464
+bundleId: 924584
+url: https://coderman202.shinyapps.io/global_land_temperature_analysis_by_country/
+when: 1501680812.8151
+asMultiple: FALSE
+asStatic: FALSE
