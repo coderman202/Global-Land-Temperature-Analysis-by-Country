@@ -1,0 +1,119 @@
+---
+title: "Global Land Temperatures Analysis"
+author: "Reggie Lyons"
+date: "1 August 2017"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is a brief look at global land temperature averages. Choose a country to see the average by year
+
+The data was sourced on kaggle.com [Here](https://www.kaggle.com/berkeleyearth/climate-change-earth-surface-temperature-data).
+
+```{r, prepare, include=FALSE}
+#Packages and libraries required
+library(ggplot2)
+library(plotly)
+library(shiny)
+
+#set my plotly credentials for using the plotly package
+Sys.setenv("plotly_username"="coderman202")
+Sys.setenv("plotly_api_key"="aCAqwGPT3Cg3ieBPBj0Q")
+
+#Reading in the neccesary csv files and storing them in variables
+#these files were sourced from kaggle here: 
+#https://www.kaggle.com/berkeleyearth/climate-change-earth-surface-temperature-data
+landTempByCountry <- read.csv2("GlobalLandTemperaturesByCountry.csv", header = TRUE, sep = ",")
+globalTemps <- read.csv2("GlobalTemperatures.csv", header = TRUE, sep = ",")
+```
+## Country Selector
+
+Choose the country and select whether you want to add uncertainties here
+
+```{r countries, echo=FALSE}
+#Get the list of countries to be chosen
+countriesList <- unique(as.character(landTempByCountry$Country))
+countriesList <- sort(countriesList)
+inputPanel(
+  selectInput("country_choice", label = "Choose Country:",
+              choices = countriesList, selected = 'Morocco'),
+  
+  checkboxInput("add_uncertainties", label = "Show Uncertainties", value = FALSE)
+)
+
+renderPlotly({
+      country <- as.character(input$country_choice)
+
+#Get subset of landTempByCountry based on the chosen country
+countryTempData <- subset(landTempByCountry, as.character(Country) == as.character(country))
+
+#lets follow the same process as the overall world plots:
+
+#Get all the date strings in countryTemps and store them in Date format
+dates <- as.Date(countryTempData$dt)
+
+#Create a data frame storing the date and the separated year, month and day.
+#Year will be the only useful one here
+df <- data.frame(date = dates, year = as.numeric(format(dates, format = "%Y")),
+                 month = as.numeric(format(dates, format = "%m")),
+                 day = as.numeric(format(dates, format = "%d")))
+
+#Create a new updated data frame which is a merge of the original and the new 
+#'cleaner' dates columns. Remove the old date column and new day and month.
+#Also remove all other uneccesary columns for this task, leaving just the:
+#date, year, average land temp and the average land temp uncertainty
+countryTempData <- cbind(countryTempData, df)
+countryTempData <- subset(countryTempData, select = -c(dt, month, day))
+countryTempData <- subset(countryTempData, select = c(1:5))
+
+#Drop the two temp variables used in this cleaning process
+rm(df)
+rm(dates)
+
+#Get the mean of the land temperature for any each year.
+countryAvTemp <- 
+      aggregate(as.numeric(levels(countryTempData$AverageTemperature)[countryTempData$AverageTemperature]), 
+                by=list(countryTempData$year), FUN=mean, na.rm = TRUE)
+
+#Get the meam of global temperature uncertainty for each year
+countryAvgTempUncertainty <- 
+      aggregate(as.numeric(levels(countryTempData$AverageTemperatureUncertainty)[countryTempData$AverageTemperatureUncertainty]), 
+                by=list(countryTempData$year), FUN=mean, na.rm = TRUE)
+
+#Combine the two and then drop the countryAvgTempUncertainty variable as it 
+#is no longer needed
+countryAvTemp <- cbind(countryAvTemp, 
+                           countryAvgTempUncertainty$x)
+rm(countryAvgTempUncertainty)
+
+#Rename the columns to something clearer to allow for easier referencing
+colnames(countryAvTemp) <- c("Year", "LandAverageTemperature", 
+                                       "LandAverageTemperatureUncertainty")
+
+if(!input$add_uncertainties){
+   #Now lets plot a line graph showing the average global temperatures from 1750 - 2015
+graphTitle <- paste(country, " Surface Temperature Averages 1750 - 2015")
+      
+      p <- plot_ly(countryAvTemp, type = "scatter", mode = "lines+markers", 
+             x = ~Year, y = ~LandAverageTemperature, name = "test") %>%
+      layout(title = graphTitle, 
+             xaxis = list(title = "Year", showgrid = F), yaxis = list(title = "Surface Temperature"))
+p   
+}
+else{
+   graphTitle <- paste(country, "Surface Temperature Averages 1750 - 2015 with Uncertainty")
+p <- plot_ly(countryAvTemp, type = "scatter", mode = "lines+markers", 
+             x = ~Year, y = ~LandAverageTemperature, name = "test", 
+             error_y = list(array = countryAvTemp$LandAverageTemperatureUncertainty, 
+                            name = "AvTemp", type ="data", color = "orange")) %>%
+      layout(title = graphTitle, 
+             xaxis = list(title = "Year", showgrid = F), yaxis = list(title = "Surface Temperature"))
+p   
+}
+
+})
+```
